@@ -33,6 +33,8 @@ class CommitCurrentProject:
         If the check before this line fails, control flow will be redirected to
         the method "commit_notes" with param 'Options="renew"'.
         Redirect control flow to "git_ignore" method.
+        Store the directory name of the project's directory inside a class
+        variable.
         """
         if not os.path.exists("commit_cp.dat"):
             print('"commit_cp.dat" NotFound!')
@@ -50,12 +52,16 @@ class CommitCurrentProject:
             print('DirectoryNotRepository!')
             self.write_cp_dir()
 
-        com_txt = os.path.join(self.current_project_directory, 'Current Commit Notes.txt')
+        fname = 'Current Commit Notes.txt'
+        com_txt = os.path.join(self.current_project_directory, fname)
         if not os.path.exists(com_txt):
-            print('"Current Commit Notes.txt" NotFound!')
+            print(f'"{fname}" NotFound!')
             self.commit_notes(Option='renew')
 
         self.git_ignore()
+
+        project_name = self.current_project_directory.split('\\')
+        self.project_name = project_name.pop()
 
 
     def write_cp_dir(self):
@@ -165,31 +171,81 @@ class CommitCurrentProject:
         subprocess.run(command, stdout=sys.stdout, text=True)
 
 
+    def check_git_status(self):
+        """
+        Checks the current project's git status.
+
+        Checks the current git status output if working directory is clean or
+        there are any untracked files. If working directory is clean then end
+        script. If there are untracked files. Return False. Otherwise return
+        True.
+        """
+        command = f'git -C "{self.current_project_directory}" status'
+
+        txt = 'nothing to commit, working tree clean'
+        txt1 = 'Untracked files:'
+        sp = subprocess.run(command, capture_output=True, text=True)
+
+        if sp.stdout.find(txt) != -1:
+            print('Git Working Tree is clean!')
+            print('Script ending..')
+            sys.exit()
+        if sp.stdout.find(txt1) != -1:
+            print('Untracked Files Detected!\n')
+            return False
+
+        return True
+
+
     def print_git_status(self):
         """
         Prints the current git status and prompts for certain actions.
 
         Subprocess runs a git status command on the current project directory,
         and pipes subprocess output to current script output.
-        Subprocess runs the same command albiet the output is directed to a
-        variable as a string.
-        Check if string contains 'txt' variable.
-        If so then end script.
+        Redirect control flow to "check_git_status" method and assign return
+        value to a variable.
+        if value is False then prompt to add files to staging area
+        automatically.
+            If prompt was accepted, break loop and redirect method to itself.
         """
         command = f'git -C "{self.current_project_directory}" status'
         subprocess.run(command, stdout=sys.stdout)
 
-        txt = 'nothing to commit, working tree clean'
-        sp = subprocess.run(command, capture_output=True, text=True)
-        if sp.stdout.find(txt) != -1:
-            print('Script ending..')
-            sys.exit()
+        check = self.check_git_status()
+        if not check:
+            msg1 = 'Do you wish to add untracked files to staging area? '
+            msg2 = '(y/n) '
+            prompt_msg = msg1+msg2
+            while True:
+                uinput = input(prompt_msg)
+
+                if uinput.lower() == 'y':
+                    self.reprint_git_status = True
+                    print()  # Purely Asthetic
+                    subprocess.run(
+                        'git add *',
+                        cwd=self.current_project_directory,
+                        stdout=sys.stdout
+                        )
+                    break
+                elif uinput.lower() == 'n':
+                    print()  # Purely Asthetic
+                    break
+
+        if self.reprint_git_status:
+            self.reprint_git_status = False
+            print('\n\nGIT STATUS\n----------\n')
+            self.print_git_status()
+        else:
+            print()  # Purely Asthetic
 
 
     def print_commit_messages(self):
         """
         Prints the commit messages stored for review before final prompt.
 
+        Redirect control flow to "check_git_status" method.
         Pull commit notes by using the method "commit_notes" with param
         'Options="read"'.
         Check if pulled data is same as 'fcontent' class variable or not.
@@ -199,6 +255,7 @@ class CommitCurrentProject:
                 If no then prompt exit.
         If data is not the same, touch up string and print them.
         """
+        check = self.check_git_status()
         commit_messages = self.commit_notes(Option='read')
 
         if commit_messages == self.fcontent or not commit_messages:
@@ -216,7 +273,7 @@ class CommitCurrentProject:
                     break
                 elif uinput.lower() == 'n':
                     print('\nPlease make the necessary changes..')
-                    input('Press "Enter" to end the script.')
+                    print('Script Ending...')
                     sys.exit()
         else:
             [print(i.replace('\n','')) for i in commit_messages]
@@ -226,7 +283,7 @@ class CommitCurrentProject:
         """
         Finalize command and commits the current project.
 
-        Print commiting project and the project name.
+        Print commiting status and project name.
         Pull commit notes by using the method "commit_notes" with param
         'Options="read"'.
         Finalize git command string.
@@ -234,9 +291,7 @@ class CommitCurrentProject:
         Renew "Current Commit Notes.txt"
         End script.
         """
-        project_name = self.current_project_directory.split('\\')
-        project_name = project_name.pop()
-        print(f'\nCommiting Project.. [{project_name}]\n')
+        print(f'\nCommiting Project.. [{self.project_name}]\n')
 
         cmd1 = f'git -C "{self.current_project_directory}" commit'
         cmd2 = f' -a -F "{self.current_project_directory}'
@@ -282,10 +337,10 @@ class CommitCurrentProject:
         print('\nCommit Current Project\n')
         
         self.check_integrity()
+        print(f'Project Directory Name: [{self.project_name}]')
+        print(f'Project Path: "{self.current_project_directory}"')
 
-        print(f'Current Project Path: "{self.current_project_directory}"')
-
-        print('\nRECENT COMMITS\n--------------\n')
+        print('\n\nRECENT COMMITS\n--------------\n')
         self.print_last_logs()
 
         print('\nCOMMIT MESSAGE\n--------------\n')
@@ -293,26 +348,6 @@ class CommitCurrentProject:
 
         print('\nGIT STATUS\n----------\n')
         self.print_git_status()
-        
-        msg1 = 'Type [exit] when finished with command prompt to '
-        msg2 = 'end instance.'
-        print(msg1+msg2)
-        while True:
-            uinput = input('Initiate Command Prompt? (y/n) ')
-
-            if uinput.lower() == 'y':
-                print('\n') # Purely Asthetic
-                self.reprint_git_status = True
-                subprocess.run('cmd', cwd=self.current_project_directory)
-                print()  # Purely Asthetic
-            elif uinput.lower() == 'n':
-                break
-
-        if self.reprint_git_status:
-            print('\nGIT STATUS\n')
-            self.print_git_status()
-        else:
-            print()  # Purely Asthetic
 
         print('Type [help] to see more commands & details.')
         while True:
