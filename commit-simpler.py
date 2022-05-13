@@ -109,7 +109,7 @@ class CommitCurrentProject:
         """
         lines = [
             ".gitignore\n",
-            ".git\n",
+            ".git/\n",
             "__pycache__/\n",
             "Current Commit Notes.txt\n",
             ]
