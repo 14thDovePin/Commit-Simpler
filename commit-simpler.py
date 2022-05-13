@@ -18,6 +18,7 @@ class CommitCurrentProject:
             '\n',
             'Body (Detailed description of changes before commit.)\n',
             ]
+        self.check = True
 
 
     def check_integrity(self):
@@ -35,10 +36,13 @@ class CommitCurrentProject:
         Redirect control flow to "git_ignore" method.
         Store the directory name of the project's directory inside a class
         variable.
+        Checks if script's prerequisite files exists.
+        If not, then end script.
         """
         if not os.path.exists("commit_cp.dat"):
             print('"commit_cp.dat" NotFound!')
             self.write_cp_dir()
+            self.check = False  # Prompts script to end.
 
         with open("commit_cp.dat", 'r') as f:
             self.current_project_directory = f.readline()
@@ -57,11 +61,17 @@ class CommitCurrentProject:
         if not os.path.exists(com_txt):
             print(f'"{fname}" NotFound!')
             self.commit_notes(Option='renew')
+            self.check = False  # Prompts script to end.
 
         self.git_ignore()
 
         project_name = self.current_project_directory.split('\\')
         self.project_name = project_name.pop()
+
+        if not self.check:
+            print('Script file prerequisites initialized!')
+            print('Script Ending..')
+            sys.exit()
 
 
     def write_cp_dir(self):
@@ -182,14 +192,25 @@ class CommitCurrentProject:
         """
         command = f'git -C "{self.current_project_directory}" status'
 
-        txt = 'nothing to commit, working tree clean'
+        txt = 'nothing to commit'
         txt1 = 'Untracked files:'
         sp = subprocess.run(command, capture_output=True, text=True)
 
         if sp.stdout.find(txt) != -1:
             print('Git Working Tree is clean!')
-            print('Script ending..')
-            sys.exit()
+            print('\nEnd script? [y, q, exit]')
+            print('Change current project directory? [cdcp]')
+            exit_str = ['y', 'yes', 'q', 'quit', 'e', 'exit']
+            while True:
+                uinput = input('>>>')
+                if uinput.lower() in exit_str:
+                    print('Script Ending..')
+                    sys.exit()
+                elif uinput.lower() == 'cdcp':
+                    self.write_cp_dir()
+                    break
+            self.start()
+
         if sp.stdout.find(txt1) != -1:
             print('Untracked Files Detected!\n')
             return False
